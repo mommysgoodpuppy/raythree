@@ -72,8 +72,7 @@ export class RaythreeExtractor {
     };
 
     scene.traverseVisible((object: THREE.Object3D) => {
-      const bridge = object.userData.bridge as BridgeUserData | undefined;
-      if (bridge?.kind === "skip") {
+      if (isBridgeSkipped(object)) {
         return;
       }
 
@@ -160,6 +159,7 @@ export class RaythreeExtractor {
       id: geometryId,
       topology: "triangles",
       revision,
+      debugLabel: geometry.name ? `${geometry.type}:${geometry.name}` : geometry.type,
       attributes,
       index,
     };
@@ -204,6 +204,10 @@ export class RaythreeExtractor {
     const typedMaterial = material as THREE.Material & {
       color?: THREE.Color | number;
       emissive?: THREE.Color | number;
+      colorNode?: {
+        isConstNode?: boolean;
+        value?: unknown;
+      } | null;
       opacity?: number;
       transparent?: boolean;
       depthWrite?: boolean;
@@ -232,7 +236,11 @@ export class RaythreeExtractor {
       id: materialId,
       revision,
       kind: classifyMaterial(material),
-      baseColor: colorToTuple(typedMaterial.color, typedMaterial.opacity ?? material.opacity ?? 1),
+      baseColor: resolveMaterialBaseColor(
+        material,
+        typedMaterial,
+        typedMaterial.opacity ?? material.opacity ?? 1,
+      ),
       emissiveColor: typedMaterial.emissive !== undefined
         ? colorToTriplet(typedMaterial.emissive)
         : undefined,
@@ -245,7 +253,8 @@ export class RaythreeExtractor {
         fog: material.fog,
       },
       state: {
-        transparent: typedMaterial.transparent ?? material.transparent,
+        transparent: (typedMaterial.transparent ?? material.transparent) ||
+          (typedMaterial.opacity ?? material.opacity ?? 1) < 0.999,
         depthWrite: typedMaterial.depthWrite ?? material.depthWrite,
         depthTest: typedMaterial.depthTest ?? material.depthTest,
         cullMode: sideToCullMode(typedMaterial.side ?? material.side),
@@ -442,17 +451,128 @@ function extractTexture(texture: THREE.Texture, id: number, revision: number): T
 }
 
 function classifyMaterial(material: THREE.Material): MaterialAsset["kind"] {
-  if (material instanceof THREE.MeshBasicMaterial) {
+  if (
+    material instanceof THREE.MeshBasicMaterial ||
+    (material as THREE.Material & { isMeshBasicNodeMaterial?: boolean }).isMeshBasicNodeMaterial === true ||
+    material.type === "MeshBasicNodeMaterial"
+  ) {
     return "unlit";
   }
   if (
     material instanceof THREE.MeshLambertMaterial ||
     material instanceof THREE.MeshStandardMaterial ||
-    material instanceof THREE.MeshPhysicalMaterial
+    material instanceof THREE.MeshPhysicalMaterial ||
+    (material as THREE.Material & {
+      isMeshLambertNodeMaterial?: boolean;
+      isMeshStandardNodeMaterial?: boolean;
+      isMeshPhysicalNodeMaterial?: boolean;
+    }).isMeshLambertNodeMaterial === true ||
+    (material as THREE.Material & {
+      isMeshLambertNodeMaterial?: boolean;
+      isMeshStandardNodeMaterial?: boolean;
+      isMeshPhysicalNodeMaterial?: boolean;
+    }).isMeshStandardNodeMaterial === true ||
+    (material as THREE.Material & {
+      isMeshLambertNodeMaterial?: boolean;
+      isMeshStandardNodeMaterial?: boolean;
+      isMeshPhysicalNodeMaterial?: boolean;
+    }).isMeshPhysicalNodeMaterial === true ||
+    material.type === "MeshLambertNodeMaterial" ||
+    material.type === "MeshStandardNodeMaterial" ||
+    material.type === "MeshPhysicalNodeMaterial"
   ) {
     return "standard";
   }
   return "custom";
+}
+
+function isBridgeSkipped(object: THREE.Object3D): boolean {
+  let current: THREE.Object3D | null = object;
+  while (current) {
+    const bridge = current.userData.bridge as BridgeUserData | undefined;
+    if (bridge?.kind === "skip") {
+      return true;
+    }
+    current = current.parent;
+  }
+  return false;
+}
+
+function resolveMaterialBaseColor(
+  material: THREE.Material,
+  typedMaterial: THREE.Material & {
+    color?: THREE.Color | number;
+    colorNode?: {
+      isConstNode?: boolean;
+      value?: unknown;
+    } | null;
+  },
+  alpha: number,
+): [number, number, number, number] {
+  const colorNodeValue = tryReadConstColorNodeValue(typedMaterial.colorNode);
+  if (colorNodeValue) {
+    return [colorNodeValue[0], colorNodeValue[1], colorNodeValue[2], colorNodeValue[3] * alpha];
+  }
+  return colorToTuple(typedMaterial.color, alpha);
+}
+
+function tryReadConstColorNodeValue(
+  colorNode: { isConstNode?: boolean; value?: unknown } | null | undefined,
+): [number, number, number, number] | null {
+  return readConstColorNodeValue(colorNode, new Set<object>());
+}
+
+function readConstColorNodeValue(
+  node: unknown,
+  visited: Set<object>,
+): [number, number, number, number] | null {
+  if (node === null || node === undefined || typeof node !== "object") {
+    return null;
+  }
+
+  if (visited.has(node)) {
+    return null;
+  }
+  visited.add(node);
+
+  const typedNode = node as {
+    isConstNode?: boolean;
+    value?: unknown;
+    node?: unknown;
+    inputNode?: unknown;
+    valueNode?: unknown;
+  };
+
+  if (typedNode.isConstNode) {
+    return colorValueToTuple(typedNode.value);
+  }
+
+  return (
+    readConstColorNodeValue(typedNode.node, visited) ??
+    readConstColorNodeValue(typedNode.inputNode, visited) ??
+    readConstColorNodeValue(typedNode.valueNode, visited)
+  );
+}
+
+function colorValueToTuple(
+  value: unknown,
+): [number, number, number, number] | null {
+  if (value instanceof THREE.Color) {
+    return [value.r, value.g, value.b, 1];
+  }
+
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "x" in value &&
+    "y" in value &&
+    "z" in value
+  ) {
+    const vector = value as { x: number; y: number; z: number; w?: number };
+    return [vector.x, vector.y, vector.z, vector.w ?? 1];
+  }
+
+  return null;
 }
 
 function colorToTuple(

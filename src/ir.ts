@@ -36,6 +36,7 @@ export interface GeometryAsset {
   id: AssetId;
   topology: PrimitiveTopology;
   revision: number;
+  debugLabel?: string;
   attributes: Record<string, GeometryAttributeAsset>;
   index?: GeometryIndexAsset;
   bounds?: {
