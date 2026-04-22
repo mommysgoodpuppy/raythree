@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "react"
+  },
+  "imports": {
+    "@react-three/fiber": "npm:@react-three/fiber@^9.5.0",
+    "react": "npm:react@^19.2.3",
+    "three": "npm:three@^0.182.0"
+  },
+  "tasks": {
+    "check": "deno check src/mod.ts examples/extract_scene.ts examples/r3f_cubes_room.tsx examples/r3f_lit_scene.tsx examples/xr_cubes_room.ts main.ts"
+  }
+}
