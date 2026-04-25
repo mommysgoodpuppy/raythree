@@ -91,8 +91,8 @@ function R3FCapture({ target }: { target: CaptureTarget }) {
   const camera = useThree((state) => state.camera);
 
   React.useLayoutEffect(() => {
-    target.scene = scene;
-    target.camera = camera;
+    target.scene = scene as unknown as THREE.Scene;
+    target.camera = camera as unknown as THREE.Camera;
   }, [camera, scene, target]);
 
   return null;

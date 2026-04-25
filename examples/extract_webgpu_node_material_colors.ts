@@ -1,7 +1,7 @@
 import * as THREE from "three/webgpu";
 import * as TSL from "three/tsl";
 
-import { RaythreeExtractor } from "../src/extract.ts";
+import { RaythreeExtractor } from "../src/lib.ts";
 
 const extractor = new RaythreeExtractor();
 const scene = new THREE.Scene();

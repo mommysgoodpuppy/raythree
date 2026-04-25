@@ -1,10 +1,14 @@
+/**
+ * Example: run a desktop Raylib window and render a lit Three.js scene each frame.
+ * Not part of the library API — see repository README.
+ */
 import * as THREE from "three";
 import { TeapotGeometry } from "three/addons/geometries/TeapotGeometry.js";
 
-import { RaylibRenderer, RaythreeExtractor } from "./src/mod.ts";
+import { RaylibRenderer, RaythreeExtractor } from "../src/mod.ts";
 
 const DEFAULT_RAYLIB_PATH = new URL(
-  "./raylib-5.5_macos/lib/libraylib.dylib",
+  "../raylib-5.5_macos/lib/libraylib.dylib",
   import.meta.url,
 ).pathname;
 

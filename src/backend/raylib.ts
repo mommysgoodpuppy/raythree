@@ -696,6 +696,14 @@ function toRaylibColor(
   };
 }
 
+const RAYLIB_IDENTITY_16: ReadonlyArray<number> = [
+  1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1,
+];
+
+function resetRaylibModelTransformToIdentity(model: raylibBindings.Model): void {
+  (model as { transform: raylibBindings.Matrix }).transform = toRaylibMatrix(RAYLIB_IDENTITY_16);
+}
+
 function toRaylibMatrix(
   elements: ArrayLike<number>,
 ): raylibBindings.Matrix {
@@ -724,6 +732,7 @@ function drawModelWiresWithMatrix(
   worldMatrix: ArrayLike<number>,
   tint: raylibBindings.Color,
 ): void {
+  resetRaylibModelTransformToIdentity(model);
   const matrix = new THREE.Matrix4().fromArray(Array.from(worldMatrix, Number));
   const position = new THREE.Vector3();
   const quaternion = new THREE.Quaternion();

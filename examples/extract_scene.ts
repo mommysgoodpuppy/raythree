@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-import { RaythreeExtractor } from "../src/mod.ts";
+import { RaythreeExtractor } from "../src/lib.ts";
 
 const extractor = new RaythreeExtractor();
 

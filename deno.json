@@ -9,6 +9,6 @@
     "three": "npm:three@^0.182.0"
   },
   "tasks": {
-    "check": "deno check src/mod.ts examples/extract_scene.ts examples/r3f_cubes_room.tsx examples/r3f_lit_scene.tsx examples/xr_cubes_room.ts main.ts"
+    "check": "deno check src/lib.ts src/mod.ts examples/extract_scene.ts examples/extract_webgpu_node_material_colors.ts examples/lit_point_light_main.ts examples/r3f_cubes_room.tsx examples/r3f_lit_scene.tsx examples/xr_cubes_room.ts"
   }
 }

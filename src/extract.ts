@@ -250,7 +250,7 @@ export class RaythreeExtractor {
       textures,
       uniforms: {
         toneMapped: material.toneMapped,
-        fog: material.fog,
+        fog: (material as { fog?: boolean }).fog ?? true,
       },
       state: {
         transparent: (typedMaterial.transparent ?? material.transparent) ||
@@ -384,7 +384,11 @@ export class RaythreeExtractor {
   }
 
   private getMaterialRevision(material: THREE.Material): number {
-    return material.version;
+    // `Material.setValues` (e.g. R3F `wireframe={true}`) does not always bump
+    // `material.version`, so cache invalidation would miss state wireframe. Fold in
+    // the wireframe bit so a flip re-emits the material in `assets.materials`.
+    const m = material as THREE.Material & { wireframe?: boolean };
+    return material.version * 2 + (m.wireframe === true ? 1 : 0);
   }
 }
 
@@ -453,6 +457,7 @@ function extractTexture(texture: THREE.Texture, id: number, revision: number): T
 function classifyMaterial(material: THREE.Material): MaterialAsset["kind"] {
   if (
     material instanceof THREE.MeshBasicMaterial ||
+    material instanceof THREE.LineBasicMaterial ||
     (material as THREE.Material & { isMeshBasicNodeMaterial?: boolean }).isMeshBasicNodeMaterial === true ||
     material.type === "MeshBasicNodeMaterial"
   ) {
@@ -489,7 +494,7 @@ function classifyMaterial(material: THREE.Material): MaterialAsset["kind"] {
 function isBridgeSkipped(object: THREE.Object3D): boolean {
   let current: THREE.Object3D | null = object;
   while (current) {
-    const bridge = current.userData.bridge as BridgeUserData | undefined;
+    const bridge = (current.userData as Record<string, unknown>).bridge as BridgeUserData | undefined;
     if (bridge?.kind === "skip") {
       return true;
     }

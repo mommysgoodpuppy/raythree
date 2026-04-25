@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import type { InstancedBufferAttribute } from "three";
 
 import type {
   ExtractionWarning,
@@ -26,16 +27,87 @@ export function createDefaultLowerers(): RenderLowerer[] {
   return [new LineTubeLowerer(), new MeshLowerer()];
 }
 
+/** True when `instanceof` may not match (e.g. webgpu vs core bundle) but the object is still a mesh. */
+function isMeshLike(object: THREE.Object3D): boolean {
+  if (object instanceof THREE.Mesh) {
+    return true;
+  }
+  const type = object.type;
+  return type === "Mesh" || type === "InstancedMesh";
+}
+
+type GeometryAttributes = Record<
+  string,
+  THREE.BufferAttribute | THREE.InterleavedBufferAttribute | undefined
+>;
+
+/**
+ * Uikit / petplay UI replicated by `extractWebXRRaythreeUi` + Raylib UI draw. These extend
+ * `THREE.Mesh` with instancing via geometry attributes (not `THREE.InstancedMesh`), so lowering
+ * them as ordinary meshes produces an extra unit plane with a mis-read material (often white).
+ *
+ * `InstancedPanelMesh` stores `instanceMatrix` on the **mesh**, not on `geometry.attributes`.
+ * The Raylib UI snapshot (`extractWebXRRaythreeUi`) resolves both; this guard must match, or
+ * uikit under a non-skip bridge is mis-lowered as a solid quad while subtrees with
+ * `bridge: { kind: "skip" }` never hit the lowerer.
+ */
+function isDrawnByRaythreeUiSnapshot(mesh: THREE.Mesh): boolean {
+  const userData = mesh.userData as { raythreeUiText?: unknown } | undefined;
+  if (userData?.raythreeUiText != null) {
+    return true;
+  }
+  const ctor = (mesh as unknown as { constructor?: { name?: string } }).constructor;
+  if (ctor?.name === "InstancedPanelMesh") {
+    // petplay uikit: never lower; instanced aData is on this mesh, not on THREE.InstancedMesh
+    return true;
+  }
+  const geometry = mesh.geometry;
+  if (geometry == null) {
+    return false;
+  }
+  const attrs = geometry.attributes as GeometryAttributes;
+  const instanceMatrix =
+    attrs.instanceMatrix != null
+      ? attrs.instanceMatrix
+      : (mesh as unknown as { instanceMatrix?: InstancedBufferAttribute | undefined })
+        .instanceMatrix;
+  if (instanceMatrix == null) {
+    return false;
+  }
+  if (attrs.aData0 != null) {
+    return true;
+  }
+  if (attrs.aData != null) {
+    return true;
+  }
+  if (attrs.instanceRGBA != null) {
+    return true;
+  }
+  return false;
+}
+
+/** True for line / line segments / line loop across duplicate Three module instances. */
+function isLineLike(object: THREE.Object3D): boolean {
+  if (object instanceof THREE.Line) {
+    return true;
+  }
+  const type = object.type;
+  return type === "Line" || type === "LineSegments" || type === "LineLoop";
+}
+
 class MeshLowerer implements RenderLowerer {
   canLower(object: THREE.Object3D): boolean {
-    return object instanceof THREE.Mesh;
+    if (!isMeshLike(object)) {
+      return false;
+    }
+    return !isDrawnByRaythreeUiSnapshot(object as unknown as THREE.Mesh);
   }
 
   lower(
     object: THREE.Object3D,
     context: LoweringContext,
   ): Array<RenderInstance | InstancedRenderInstance> {
-    const mesh = object as THREE.Mesh;
+    const mesh = object as unknown as THREE.Mesh;
     if (!Array.isArray(mesh.material)) {
       return [this.lowerSingleMaterialMesh(mesh, mesh.material, context)];
     }
@@ -43,7 +115,7 @@ class MeshLowerer implements RenderLowerer {
     const primaryMaterial = mesh.material[0];
     if (primaryMaterial === undefined) {
       context.warn({
-        nodeId: context.getNodeId(mesh),
+        nodeId: context.getNodeId(mesh as unknown as THREE.Object3D),
         objectName: mesh.name,
         objectType: mesh.type,
         reason: "Mesh has no material bindings.",
@@ -52,7 +124,7 @@ class MeshLowerer implements RenderLowerer {
     }
 
     context.warn({
-      nodeId: context.getNodeId(mesh),
+      nodeId: context.getNodeId(mesh as unknown as THREE.Object3D),
       objectName: mesh.name,
       objectType: mesh.type,
       reason: "Multi-material meshes currently use only the first material.",
@@ -65,19 +137,20 @@ class MeshLowerer implements RenderLowerer {
     material: THREE.Material,
     context: LoweringContext,
   ): RenderInstance | InstancedRenderInstance {
-    const nodeId = context.getNodeId(mesh);
+    const nodeId = context.getNodeId(mesh as unknown as THREE.Object3D);
     const materialAsset = context.ensureMaterial(material);
     const geometryId = context.ensureGeometry(mesh.geometry);
     const worldMatrix = new Float32Array(mesh.matrixWorld.elements);
     const normalMatrix3 = new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld);
     const normalMatrix = new Float32Array(normalMatrix3.toArray());
 
-    if (mesh instanceof THREE.InstancedMesh) {
-      const instanceMatrices = new Float32Array(mesh.count * 16);
+    if (mesh instanceof THREE.InstancedMesh || mesh.type === "InstancedMesh") {
+      const instanced = mesh as unknown as THREE.InstancedMesh;
+      const instanceMatrices = new Float32Array(instanced.count * 16);
       const instanceMatrix = new THREE.Matrix4();
 
-      for (let index = 0; index < mesh.count; index++) {
-        mesh.getMatrixAt(index, instanceMatrix);
+      for (let index = 0; index < instanced.count; index++) {
+        instanced.getMatrixAt(index, instanceMatrix);
         instanceMatrices.set(instanceMatrix.elements, index * 16);
       }
 
@@ -94,7 +167,7 @@ class MeshLowerer implements RenderLowerer {
         receiveShadow: mesh.receiveShadow,
         castShadow: mesh.castShadow,
         instanceMatrices,
-        instanceCount: mesh.count,
+        instanceCount: instanced.count,
       };
     }
 
@@ -127,18 +200,18 @@ class LineTubeLowerer implements RenderLowerer {
   >();
 
   canLower(object: THREE.Object3D): boolean {
-    return object instanceof THREE.Line;
+    return isLineLike(object);
   }
 
   lower(
     object: THREE.Object3D,
     context: LoweringContext,
   ): Array<RenderInstance | InstancedRenderInstance> {
-    const line = object as THREE.Line;
+    const line = object as unknown as THREE.Line;
     const material = pickPrimaryMaterial(line.material);
     if (material === null) {
       context.warn({
-        nodeId: context.getNodeId(line),
+        nodeId: context.getNodeId(line as unknown as THREE.Object3D),
         objectName: line.name,
         objectType: line.type,
         reason: "Line has no material bindings.",
@@ -159,7 +232,7 @@ class LineTubeLowerer implements RenderLowerer {
     line: THREE.Line,
     context: LoweringContext,
   ): THREE.BufferGeometry | null {
-    const bridge = (line.userData.bridge ?? {}) as LineBridgeConfig;
+    const bridge = ((line.userData as Record<string, unknown>).bridge ?? {}) as LineBridgeConfig;
     const radius = bridge.radius ?? 0.035;
     const radialSegments = bridge.radialSegments ?? 8;
     const version = getLineGeometryVersion(line.geometry);
@@ -185,7 +258,7 @@ function createRenderInstance(
   materialAsset: MaterialAsset,
   context: LoweringContext,
 ): RenderInstance {
-  const nodeId = context.getNodeId(object);
+  const nodeId = context.getNodeId(object as unknown as THREE.Object3D);
   const geometryId = context.ensureGeometry(geometry);
   const worldMatrix = new Float32Array(object.matrixWorld.elements);
   const normalMatrix3 = new THREE.Matrix3().getNormalMatrix(object.matrixWorld);
@@ -222,7 +295,7 @@ function getLineGeometryVersion(geometry: THREE.BufferGeometry): number {
     THREE.BufferAttribute | THREE.InterleavedBufferAttribute
   >;
   for (const attribute of Object.values(attributes)) {
-    revision += attribute.version;
+    revision += "version" in attribute ? attribute.version : 0;
   }
   return revision;
 }
@@ -234,20 +307,23 @@ function buildTubeSegmentsGeometry(
   context: LoweringContext,
 ): THREE.BufferGeometry | null {
   const position = line.geometry.getAttribute("position");
-  if (!(position instanceof THREE.BufferAttribute) || position.itemSize < 3) {
+  if (position == null || position.itemSize < 3) {
     context.warn({
-      nodeId: context.getNodeId(line),
+      nodeId: context.getNodeId(line as unknown as THREE.Object3D),
       objectName: line.name,
       objectType: line.type,
-      reason: "Line lowering requires a position BufferAttribute with 3 components.",
+      reason: "Line lowering requires a position attribute with 3 components.",
     });
     return null;
   }
 
-  const segments = collectLineSegments(line, position);
+  const segments = collectLineSegments(
+    line,
+    position as unknown as THREE.BufferAttribute,
+  );
   if (segments.length === 0) {
     context.warn({
-      nodeId: context.getNodeId(line),
+      nodeId: context.getNodeId(line as unknown as THREE.Object3D),
       objectName: line.name,
       objectType: line.type,
       reason: "Line lowering found no drawable segments.",
@@ -294,7 +370,7 @@ function collectLineSegments(
   );
 
   const segments: Array<[THREE.Vector3, THREE.Vector3]> = [];
-  if (line instanceof THREE.LineSegments) {
+  if (line instanceof THREE.LineSegments || line.type === "LineSegments") {
     for (let index = 0; index + 1 < points.length; index += 2) {
       segments.push([points[index], points[index + 1]]);
     }
@@ -305,7 +381,7 @@ function collectLineSegments(
     segments.push([points[index], points[index + 1]]);
   }
 
-  if (line instanceof THREE.LineLoop && points.length > 2) {
+  if ((line instanceof THREE.LineLoop || line.type === "LineLoop") && points.length > 2) {
     segments.push([points[points.length - 1], points[0]]);
   }
 
@@ -315,7 +391,7 @@ function collectLineSegments(
 function mergeNonIndexedGeometries(geometries: THREE.BufferGeometry[]): THREE.BufferGeometry {
   let vertexCount = 0;
   for (const geometry of geometries) {
-    vertexCount += geometry.getAttribute("position").count;
+    vertexCount += geometry.getAttribute("position")?.count ?? 0;
   }
 
   const positions = new Float32Array(vertexCount * 3);

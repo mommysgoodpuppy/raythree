@@ -1,6 +1,8 @@
+/**
+ * Full package: **library** (`lib.ts`) plus the **reference** Raylib window/renderer (`backend/`).
+ *
+ * Embedders that bring their own renderer (like PetPlay’s WebXR raylib path) should import from
+ * `./lib.ts` only so dependency boundaries stay obvious.
+ */
+export * from "./lib.ts";
 export * from "./backend/mod.ts";
-export * from "./extract.ts";
-export * from "./ids.ts";
-export * from "./ir.ts";
-export * from "./lowerers.ts";
-export * from "./r3f_runtime.ts";
