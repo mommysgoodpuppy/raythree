@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { InstancedBufferAttribute } from "three";
+import { isInstancedPanelMeshRegisteredForRaythreeMeshLowerer } from "../../threewebxrwebgpudeno/local-uikit/raylibUikitMeshLowererRegistry.ts";
 
 import type {
   ExtractionWarning,
@@ -42,16 +43,34 @@ type GeometryAttributes = Record<
 >;
 
 /**
- * Uikit / petplay UI replicated by `extractWebXRRaythreeUi` + Raylib UI draw. These extend
- * `THREE.Mesh` with instancing via geometry attributes (not `THREE.InstancedMesh`), so lowering
- * them as ordinary meshes produces an extra unit plane with a mis-read material (often white).
- *
- * `InstancedPanelMesh` stores `instanceMatrix` on the **mesh**, not on `geometry.attributes`.
- * The Raylib UI snapshot (`extractWebXRRaythreeUi`) resolves both; this guard must match, or
- * uikit under a non-skip bridge is mis-lowered as a solid quad while subtrees with
- * `bridge: { kind: "skip" }` never hit the lowerer.
+ * `Component` / `Container` (local-uikit) extend `THREE.Mesh` as flex **layout shells** with
+ * `panelGeometry` — they are not world meshes for the Raythree IR. Skipping by duck-type avoids
+ * importing uikit into raythree. `InstancedPanelMesh` has no `properties` / `node` fields; it is
+ * covered by the WeakSet from `InstancedPanelGroup` or the attribute heuristics below.
+ */
+function isUikitComponentLayoutMesh(mesh: THREE.Mesh): boolean {
+  const m = mesh as unknown as {
+    properties?: unknown;
+    node?: unknown;
+    root?: { value?: { panelGroupManager?: unknown } };
+  };
+  if (m.properties == null || m.node == null || m.root == null) {
+    return false;
+  }
+  return m.root.value != null && m.root.value.panelGroupManager != null;
+}
+
+/**
+ * Uikit: WebGPU path draws `InstancedPanelMesh` + TSL, Raylib replicates from the same buffers.
+ * The generic mesh lowerer must not also emit those objects as `kind: "mesh"`.
  */
 function isDrawnByRaythreeUiSnapshot(mesh: THREE.Mesh): boolean {
+  if (isUikitComponentLayoutMesh(mesh)) {
+    return true;
+  }
+  if (isInstancedPanelMeshRegisteredForRaythreeMeshLowerer(mesh)) {
+    return true;
+  }
   const userData = mesh.userData as { raythreeUiText?: unknown } | undefined;
   if (userData?.raythreeUiText != null) {
     return true;
