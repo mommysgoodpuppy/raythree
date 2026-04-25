@@ -28,6 +28,15 @@ export interface RaythreeExtractorOptions {
   lowerers?: RenderLowerer[];
 }
 
+/** Per-call options for {@link RaythreeExtractor.extract}. */
+export type RaythreeExtractCallOptions = {
+  /**
+   * When `true`, skip `scene.updateMatrixWorld(true)` because the caller already
+   * ran it for this frame (e.g. two eye extractions from the same snapshot).
+   */
+  skipSceneMatrixWorldUpdate?: boolean;
+};
+
 export class RaythreeExtractor {
   private readonly ids = new StableIdRegistry();
   private readonly lowerers: RenderLowerer[];
@@ -39,8 +48,14 @@ export class RaythreeExtractor {
     this.lowerers = options.lowerers ?? createDefaultLowerers();
   }
 
-  extract(scene: THREE.Scene, camera: THREE.Camera): ExtractionResult {
-    scene.updateMatrixWorld(true);
+  extract(
+    scene: THREE.Scene,
+    camera: THREE.Camera,
+    callOptions?: RaythreeExtractCallOptions,
+  ): ExtractionResult {
+    if (!callOptions?.skipSceneMatrixWorldUpdate) {
+      scene.updateMatrixWorld(true);
+    }
     camera.updateMatrixWorld(true);
 
     if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
@@ -255,8 +270,8 @@ export class RaythreeExtractor {
       state: {
         transparent: (typedMaterial.transparent ?? material.transparent) ||
           (typedMaterial.opacity ?? material.opacity ?? 1) < 0.999,
-        depthWrite: typedMaterial.depthWrite ?? material.depthWrite,
-        depthTest: typedMaterial.depthTest ?? material.depthTest,
+        depthWrite: (typedMaterial.depthWrite ?? material.depthWrite) ?? true,
+        depthTest: (typedMaterial.depthTest ?? material.depthTest) ?? true,
         cullMode: sideToCullMode(typedMaterial.side ?? material.side),
         blendMode: blendingToBlendMode(typedMaterial.blending ?? material.blending),
         wireframe: typedMaterial.wireframe ?? false,
@@ -384,11 +399,23 @@ export class RaythreeExtractor {
   }
 
   private getMaterialRevision(material: THREE.Material): number {
-    // `Material.setValues` (e.g. R3F `wireframe={true}`) does not always bump
-    // `material.version`, so cache invalidation would miss state wireframe. Fold in
-    // the wireframe bit so a flip re-emits the material in `assets.materials`.
-    const m = material as THREE.Material & { wireframe?: boolean };
-    return material.version * 2 + (m.wireframe === true ? 1 : 0);
+    // R3F / WebGPU often toggles flags without bumping `material.version`. Raylib caches
+    // `NativeMaterial` by `MaterialAsset.revision` — if we only keyed on `version` + wireframe,
+    // depthTest/depthWrite changes (e.g. controller aim beam) would never re-sync and stayed
+    // stuck on stale depth state (beam vanishes behind the keyboard).
+    const m = material as THREE.Material & {
+      wireframe?: boolean;
+      transparent?: boolean;
+      depthWrite?: boolean;
+      depthTest?: boolean;
+      opacity?: number;
+    };
+    let bits = 0;
+    if (m.wireframe === true) bits |= 1;
+    if ((m.depthTest ?? true) === false) bits |= 2;
+    if ((m.depthWrite ?? true) === false) bits |= 4;
+    if ((m.transparent ?? material.transparent) === true) bits |= 8;
+    return material.version * 64 + bits;
   }
 }
 

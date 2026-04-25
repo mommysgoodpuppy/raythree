@@ -125,6 +125,11 @@ export interface RenderInstance {
   transparent: boolean;
   receiveShadow: boolean;
   castShadow: boolean;
+  /**
+   * When true, Raylib draws this mesh after uikit so it appears on top of panels/text
+   * (e.g. controller aim beam). Set `userData.raythreeHudOverUi = true` on the Three object.
+   */
+  hudOverUi?: boolean;
 }
 
 export interface InstancedRenderInstance extends RenderInstance {

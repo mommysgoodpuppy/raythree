@@ -163,6 +163,8 @@ class MeshLowerer implements RenderLowerer {
     const normalMatrix3 = new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld);
     const normalMatrix = new Float32Array(normalMatrix3.toArray());
 
+    const hudOverUi = readRaythreeHudOverUi(mesh);
+
     if (mesh instanceof THREE.InstancedMesh || mesh.type === "InstancedMesh") {
       const instanced = mesh as unknown as THREE.InstancedMesh;
       const instanceMatrices = new Float32Array(instanced.count * 16);
@@ -187,6 +189,7 @@ class MeshLowerer implements RenderLowerer {
         castShadow: mesh.castShadow,
         instanceMatrices,
         instanceCount: instanced.count,
+        ...(hudOverUi ? { hudOverUi: true } : {}),
       };
     }
 
@@ -202,6 +205,7 @@ class MeshLowerer implements RenderLowerer {
       transparent: materialAsset.state.transparent,
       receiveShadow: mesh.receiveShadow,
       castShadow: mesh.castShadow,
+      ...(hudOverUi ? { hudOverUi: true } : {}),
     };
   }
 }
@@ -283,6 +287,8 @@ function createRenderInstance(
   const normalMatrix3 = new THREE.Matrix3().getNormalMatrix(object.matrixWorld);
   const normalMatrix = new Float32Array(normalMatrix3.toArray());
 
+  const hudOverUi = readRaythreeHudOverUi(object);
+
   return {
     kind: "mesh",
     nodeId,
@@ -295,7 +301,12 @@ function createRenderInstance(
     transparent: materialAsset.state.transparent,
     receiveShadow: "receiveShadow" in object ? Boolean(object.receiveShadow) : false,
     castShadow: "castShadow" in object ? Boolean(object.castShadow) : false,
+    ...(hudOverUi ? { hudOverUi: true } : {}),
   };
+}
+
+function readRaythreeHudOverUi(object: { userData: unknown }): boolean {
+  return Boolean((object.userData as { raythreeHudOverUi?: boolean }).raythreeHudOverUi);
 }
 
 function pickPrimaryMaterial(
