@@ -118,8 +118,12 @@ export interface RenderInstance {
   nodeId: NodeId;
   geometryId: AssetId;
   materialId: AssetId;
-  worldMatrix: Float32Array;
-  normalMatrix: Float32Array;
+  /**
+   * Full double precision (Three’s `matrixWorld` is 64-bit). A `Float32` snapshot
+   * added visible sub-mm stepping on long controller/laser world chains before Raylib.
+   */
+  worldMatrix: Float64Array;
+  normalMatrix: Float64Array;
   renderOrder: number;
   layerMask: number;
   transparent: boolean;
@@ -134,7 +138,7 @@ export interface RenderInstance {
 
 export interface InstancedRenderInstance extends RenderInstance {
   kind: "instancedMesh";
-  instanceMatrices: Float32Array;
+  instanceMatrices: Float64Array;
   instanceCount: number;
 }
 

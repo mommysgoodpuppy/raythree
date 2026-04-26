@@ -159,15 +159,15 @@ class MeshLowerer implements RenderLowerer {
     const nodeId = context.getNodeId(mesh as unknown as THREE.Object3D);
     const materialAsset = context.ensureMaterial(material);
     const geometryId = context.ensureGeometry(mesh.geometry);
-    const worldMatrix = new Float32Array(mesh.matrixWorld.elements);
+    const worldMatrix = new Float64Array(mesh.matrixWorld.elements);
     const normalMatrix3 = new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld);
-    const normalMatrix = new Float32Array(normalMatrix3.toArray());
+    const normalMatrix = new Float64Array(normalMatrix3.toArray());
 
     const hudOverUi = readRaythreeHudOverUi(mesh);
 
     if (mesh instanceof THREE.InstancedMesh || mesh.type === "InstancedMesh") {
       const instanced = mesh as unknown as THREE.InstancedMesh;
-      const instanceMatrices = new Float32Array(instanced.count * 16);
+      const instanceMatrices = new Float64Array(instanced.count * 16);
       const instanceMatrix = new THREE.Matrix4();
 
       for (let index = 0; index < instanced.count; index++) {
@@ -283,9 +283,9 @@ function createRenderInstance(
 ): RenderInstance {
   const nodeId = context.getNodeId(object as unknown as THREE.Object3D);
   const geometryId = context.ensureGeometry(geometry);
-  const worldMatrix = new Float32Array(object.matrixWorld.elements);
+  const worldMatrix = new Float64Array(object.matrixWorld.elements);
   const normalMatrix3 = new THREE.Matrix3().getNormalMatrix(object.matrixWorld);
-  const normalMatrix = new Float32Array(normalMatrix3.toArray());
+  const normalMatrix = new Float64Array(normalMatrix3.toArray());
 
   const hudOverUi = readRaythreeHudOverUi(object);
 

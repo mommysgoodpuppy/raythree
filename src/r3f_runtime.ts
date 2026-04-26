@@ -1,5 +1,5 @@
 import React from "react";
-import { createRoot, extend, useThree } from "@react-three/fiber";
+import { createRoot, extend, useThree } from "@react-three/fiber/webgpu";
 import * as THREE from "three";
 
 // deno-lint-ignore no-explicit-any
@@ -50,9 +50,9 @@ export async function createR3FExtractionRoot(
     },
   };
 
-  const root = createRoot(canvas);
+  const root = createRoot(canvas as unknown as HTMLCanvasElement);
   await root.configure({
-    gl: async () => createFakeRenderer(canvas),
+    renderer: async () => createFakeRenderer(canvas),
     size: { width: options.width, height: options.height, top: 0, left: 0 },
     dpr: 1,
     camera: {
@@ -120,6 +120,10 @@ function createFakeRenderer(canvas: FakeCanvas) {
     setSize() {},
     render() {},
     setAnimationLoop() {},
+    hasInitialized() {
+      return true;
+    },
+    async init() {},
     dispose() {},
     getContext() {
       return null;
@@ -128,16 +132,13 @@ function createFakeRenderer(canvas: FakeCanvas) {
 }
 
 function ensureR3FGlobals() {
-  const globalAny = globalThis as typeof globalThis & {
-    // deno-lint-ignore no-explicit-any
-    window?: any;
+  const globalAny = globalThis as {
+    window?: unknown;
     requestAnimationFrame?: (cb: (time: number) => void) => number;
     cancelAnimationFrame?: (id: number) => void;
-    document?: typeof globalDocument;
-    // deno-lint-ignore no-explicit-any
-    HTMLElement?: any;
-    // deno-lint-ignore no-explicit-any
-    ResizeObserver?: any;
+    document?: unknown;
+    HTMLElement?: unknown;
+    ResizeObserver?: unknown;
   };
 
   globalAny.window ??= globalThis;
