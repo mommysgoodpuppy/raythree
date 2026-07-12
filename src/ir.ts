@@ -63,6 +63,7 @@ export interface RenderState {
   transparent: boolean;
   depthWrite: boolean;
   depthTest: boolean;
+  colorWrite: boolean;
   cullMode: CullMode;
   blendMode: BlendMode;
   wireframe: boolean;

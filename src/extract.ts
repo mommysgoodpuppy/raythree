@@ -227,6 +227,7 @@ export class RaythreeExtractor {
       transparent?: boolean;
       depthWrite?: boolean;
       depthTest?: boolean;
+      colorWrite?: boolean;
       wireframe?: boolean;
       side?: number;
       blending?: number;
@@ -272,6 +273,7 @@ export class RaythreeExtractor {
           (typedMaterial.opacity ?? material.opacity ?? 1) < 0.999,
         depthWrite: (typedMaterial.depthWrite ?? material.depthWrite) ?? true,
         depthTest: (typedMaterial.depthTest ?? material.depthTest) ?? true,
+        colorWrite: (typedMaterial.colorWrite ?? material.colorWrite) ?? true,
         cullMode: sideToCullMode(typedMaterial.side ?? material.side),
         blendMode: blendingToBlendMode(typedMaterial.blending ?? material.blending),
         wireframe: typedMaterial.wireframe ?? false,
@@ -408,6 +410,7 @@ export class RaythreeExtractor {
       transparent?: boolean;
       depthWrite?: boolean;
       depthTest?: boolean;
+      colorWrite?: boolean;
       opacity?: number;
     };
     let bits = 0;
@@ -415,6 +418,7 @@ export class RaythreeExtractor {
     if ((m.depthTest ?? true) === false) bits |= 2;
     if ((m.depthWrite ?? true) === false) bits |= 4;
     if ((m.transparent ?? material.transparent) === true) bits |= 8;
+    if ((m.colorWrite ?? material.colorWrite ?? true) === false) bits |= 16;
     return material.version * 64 + bits;
   }
 }
