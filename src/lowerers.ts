@@ -114,6 +114,40 @@ function isLineLike(object: THREE.Object3D): boolean {
   return type === "Line" || type === "LineSegments" || type === "LineLoop";
 }
 
+/**
+ * Per-mesh scratch buffers for the lowering pass.
+ *
+ * `lowerSingleMaterialMesh` runs for every mesh on every extracted frame (the ray lib overlay path
+ * extracts at the display rate), so allocating a 16-float matrix, a normal matrix, a `Matrix3` and
+ * an array per mesh per frame was pure GC churn. The instance records handed to the renderer are
+ * read synchronously within the same frame (`WebXRRaythreeRaylibRenderer` copies them into its draw
+ * state), so the buffers are refreshed in place: consumers MUST NOT retain them.
+ */
+type MeshLoweringScratch = {
+  readonly worldMatrix: Float64Array;
+  readonly normalMatrix: Float64Array;
+  readonly normalMatrix3: THREE.Matrix3;
+  instanceMatrices: Float64Array | null;
+  readonly instanceMatrix: THREE.Matrix4;
+};
+
+const meshLoweringScratch = new WeakMap<THREE.Mesh, MeshLoweringScratch>();
+
+function loweringScratchFor(mesh: THREE.Mesh): MeshLoweringScratch {
+  let scratch = meshLoweringScratch.get(mesh);
+  if (scratch === undefined) {
+    scratch = {
+      worldMatrix: new Float64Array(16),
+      normalMatrix: new Float64Array(9),
+      normalMatrix3: new THREE.Matrix3(),
+      instanceMatrices: null,
+      instanceMatrix: new THREE.Matrix4(),
+    };
+    meshLoweringScratch.set(mesh, scratch);
+  }
+  return scratch;
+}
+
 class MeshLowerer implements RenderLowerer {
   canLower(object: THREE.Object3D): boolean {
     if (!isMeshLike(object)) {
@@ -159,16 +193,23 @@ class MeshLowerer implements RenderLowerer {
     const nodeId = context.getNodeId(mesh as unknown as THREE.Object3D);
     const materialAsset = context.ensureMaterial(material);
     const geometryId = context.ensureGeometry(mesh.geometry);
-    const worldMatrix = new Float64Array(mesh.matrixWorld.elements);
-    const normalMatrix3 = new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld);
-    const normalMatrix = new Float64Array(normalMatrix3.toArray());
+    const scratch = loweringScratchFor(mesh);
+    const worldMatrix = scratch.worldMatrix;
+    worldMatrix.set(mesh.matrixWorld.elements);
+    const normalMatrix = scratch.normalMatrix;
+    scratch.normalMatrix3.getNormalMatrix(mesh.matrixWorld).toArray(normalMatrix);
 
     const hudOverUi = readRaythreeHudOverUi(mesh);
 
     if (mesh instanceof THREE.InstancedMesh || mesh.type === "InstancedMesh") {
       const instanced = mesh as unknown as THREE.InstancedMesh;
-      const instanceMatrices = new Float64Array(instanced.count * 16);
-      const instanceMatrix = new THREE.Matrix4();
+      const requiredLength = instanced.count * 16;
+      let instanceMatrices = scratch.instanceMatrices;
+      if (instanceMatrices == null || instanceMatrices.length !== requiredLength) {
+        instanceMatrices = new Float64Array(requiredLength);
+        scratch.instanceMatrices = instanceMatrices;
+      }
+      const instanceMatrix = scratch.instanceMatrix;
 
       for (let index = 0; index < instanced.count; index++) {
         instanced.getMatrixAt(index, instanceMatrix);

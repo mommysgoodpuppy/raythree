@@ -78,7 +78,14 @@ export interface MaterialAsset {
   id: AssetId;
   revision: number;
   kind: MaterialKind;
+  /**
+   * **sRGB-encoded**, 0..1 — not linear light. Three keeps colors in its linear
+   * working space; the extractor converts on the way out so a backend can write
+   * these to an ordinary (non-sRGB) framebuffer without a transfer function of
+   * its own. A backend that lights in linear space must decode first.
+   */
   baseColor: [number, number, number, number];
+  /** sRGB-encoded, 0..1, on the same terms as {@link MaterialAsset.baseColor}. */
   emissiveColor?: [number, number, number];
   roughness?: number;
   metalness?: number;
@@ -122,6 +129,9 @@ export interface RenderInstance {
   /**
    * Full double precision (Three’s `matrixWorld` is 64-bit). A `Float32` snapshot
    * added visible sub-mm stepping on long controller/laser world chains before Raylib.
+   *
+   * The lowerer refreshes these buffers in place per extracted frame, so they alias the source
+   * mesh’s scratch: read them within the frame that produced the instance, never retain them.
    */
   worldMatrix: Float64Array;
   normalMatrix: Float64Array;

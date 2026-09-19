@@ -590,11 +590,34 @@ function readConstColorNodeValue(
   );
 }
 
+/**
+ * Three stores colors in its **working** space, which is linear-sRGB whenever
+ * `ColorManagement` is enabled. Reading `.r/.g/.b` off a `THREE.Color` therefore
+ * yields linear light, not the authored value: `new THREE.Color(0xffc300)`
+ * reads back as `(1.0, 0.545, 0.0)`.
+ *
+ * The IR declares colors as sRGB-encoded (see `MaterialAsset.baseColor`), so a
+ * backend can write them to an ordinary non-sRGB framebuffer directly. Convert
+ * at this boundary rather than in each backend, so every consumer agrees.
+ *
+ * `getRGB` converts out of whatever the working space currently is, so this is
+ * also correct — a no-op — when `ColorManagement` is disabled and the color is
+ * already sRGB. Do not substitute a bare `pow(c, 1/2.2)`, which would
+ * double-encode in that case.
+ */
+const workingToSrgb = { r: 0, g: 0, b: 0 };
+
+function srgbTriplet(color: THREE.Color): [number, number, number] {
+  color.getRGB(workingToSrgb, THREE.SRGBColorSpace);
+  return [workingToSrgb.r, workingToSrgb.g, workingToSrgb.b];
+}
+
 function colorValueToTuple(
   value: unknown,
 ): [number, number, number, number] | null {
   if (value instanceof THREE.Color) {
-    return [value.r, value.g, value.b, 1];
+    const [r, g, b] = srgbTriplet(value);
+    return [r, g, b, 1];
   }
 
   if (
@@ -623,12 +646,11 @@ function colorToTriplet(
   color: THREE.Color | number | undefined,
 ): [number, number, number] {
   if (typeof color === "number") {
-    const converted = new THREE.Color(color);
-    return [converted.r, converted.g, converted.b];
+    return srgbTriplet(new THREE.Color(color));
   }
 
   if (color !== undefined) {
-    return [color.r, color.g, color.b];
+    return srgbTriplet(color);
   }
 
   return [1, 1, 1];
