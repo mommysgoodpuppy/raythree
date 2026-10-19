@@ -103,7 +103,15 @@ export class RaythreeExtractor {
         return;
       }
 
-      const lowerer = this.lowerers.find((candidate) => candidate.canLower(object));
+      // A loop rather than `find`: this runs for every visible object every frame, and a closure
+      // per object was a large share of the scene worker's garbage.
+      let lowerer: RenderLowerer | undefined;
+      for (const candidate of this.lowerers) {
+        if (candidate.canLower(object)) {
+          lowerer = candidate;
+          break;
+        }
+      }
       if (lowerer === undefined) {
         if (this.shouldWarnForObject(object)) {
           warnings.push({
@@ -116,8 +124,7 @@ export class RaythreeExtractor {
         return;
       }
 
-      const lowered = lowerer.lower(object, context);
-      frame.instances.push(...lowered);
+      for (const instance of lowerer.lower(object, context)) frame.instances.push(instance);
     });
 
     frame.instances.sort((left, right) => {
