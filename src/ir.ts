@@ -90,6 +90,11 @@ export interface MaterialAsset {
   roughness?: number;
   metalness?: number;
   opacity: number;
+  /**
+   * Three's `Material.vertexColors`: multiply by the geometry's `color` attribute (linear, like
+   * Three's working space; RGB or RGBA). Off, a `color` attribute is ignored, as in Three.
+   */
+  vertexColors?: boolean;
   textures: MaterialTextureBinding[];
   uniforms: Record<string, number | boolean | string>;
   state: RenderState;

@@ -270,6 +270,7 @@ export class RaythreeExtractor {
       roughness: typedMaterial.roughness,
       metalness: typedMaterial.metalness,
       opacity: typedMaterial.opacity ?? material.opacity ?? 1,
+      vertexColors: (material as { vertexColors?: boolean }).vertexColors === true,
       textures,
       uniforms: {
         toneMapped: material.toneMapped,
