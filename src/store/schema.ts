@@ -264,6 +264,21 @@ export interface TextRunData {
   uiOrder: UiOrder;
 }
 
+// ---- video ----
+
+/**
+ * A surface showing part of a media feed (a desktop capture, a remote stream). The pixels never
+ * enter the store: `feed` names a track the renderer receives over its media transport, and the
+ * store says where it appears. `geometry` is the surface in item space; its UVs span 0..1 over the
+ * shown region, which is `crop` of the feed's picture (normalized, top-left origin, y down).
+ */
+export interface VideoSurfaceData {
+  feed: string;
+  geometry: RowId;
+  crop: { x: number; y: number; width: number; height: number };
+  opacity: number;
+}
+
 export interface TableRows {
   textures: { meta: TextureMeta; source: TextureSource };
   geometries: { data: GeometryData };
