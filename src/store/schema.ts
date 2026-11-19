@@ -184,6 +184,86 @@ export interface MeshItemData {
   extensions: Record<string, unknown>;
 }
 
+// ---- UI item kinds ----
+//
+// Flat UI as drawn by uikit-style toolkits: rounded rectangles and MSDF text runs, in the item's
+// own space, measured in UI pixels. The item transform maps UI pixels to node space.
+
+/**
+ * Draw order among UI items, which draw without depth testing against each other.
+ *
+ * `root` names an independent UI root: the renderer sorts roots back to front by view depth,
+ * because no order exists between them. Within a root, items draw in lexicographic order of the
+ * remaining fields: `layer` (0 quads, 1 text), then the toolkit's own keys, then `slot` (the
+ * toolkit's allocation order, fractional for an image fill drawn right after its panel).
+ */
+export type UiOrder = [
+  root: number,
+  layer: number,
+  renderOrder: number,
+  major: number,
+  minor: number,
+  elementType: number,
+  patch: number,
+  slot: number,
+];
+
+/**
+ * Four clip planes in **node space**, 16 floats: a point x is kept where
+ * `dot(plane.xyz, x) + plane.w > 0` for every plane. Null: unclipped.
+ */
+export type ClipPlanes = Float64Array | null;
+
+/**
+ * `uiQuad`: a rounded rectangle, the unit square [-0.5, 0.5]² of the item transform, with a
+ * border and either a flat fill or an image fill (the image goes through the same rounded
+ * corners).
+ */
+export interface UiQuadData {
+  /** Size in UI pixels, for border and corner geometry (the transform already scales the quad). */
+  size: [number, number];
+  /** Top, right, bottom, left, in UI pixels. */
+  borderWidth: [number, number, number, number];
+  /** Top-left, top-right, bottom-right, bottom-left, in UI pixels. */
+  borderRadius: [number, number, number, number];
+  borderBend: number;
+  /** sRGB-encoded 0..1, alpha straight. */
+  background: [number, number, number, number];
+  border: [number, number, number, number];
+  image: UiImageFill | null;
+  clip: ClipPlanes;
+  depthTest: boolean;
+  depthWrite: boolean;
+  uiOrder: UiOrder;
+}
+
+export interface UiImageFill {
+  texture: RowId;
+  fit: "cover" | "stretch";
+  /** Focal point for `cover`, 0..1 per axis. */
+  focus: [number, number];
+  opacity: number;
+}
+
+/**
+ * `textRun`: MSDF glyph quads, already shaped by the producer (layout depends on measured text,
+ * so the producer's shaping is authoritative). `glyphs` holds 8 floats per glyph in item space:
+ * x0, y0, x1, y1, then the atlas UV rectangle u0, v0, u1, v1 (u0,v0 belongs to corner x0,y0).
+ */
+export interface TextRunData {
+  text: string;
+  /** The MSDF atlas texture. */
+  atlas: RowId;
+  /** The atlas's distance range in pixels (msdfgen's pxRange). */
+  pxRange: number;
+  /** sRGB-encoded 0..1, alpha straight. */
+  color: [number, number, number, number];
+  glyphs: Float32Array;
+  bounds: { minX: number; maxX: number; minY: number; maxY: number };
+  clip: ClipPlanes;
+  uiOrder: UiOrder;
+}
+
 export interface TableRows {
   textures: { meta: TextureMeta; source: TextureSource };
   geometries: { data: GeometryData };
