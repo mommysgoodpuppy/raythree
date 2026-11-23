@@ -35,6 +35,11 @@ export type RaythreeExtractCallOptions = {
    * ran it for this frame (e.g. two eye extractions from the same snapshot).
    */
   skipSceneMatrixWorldUpdate?: boolean;
+  /**
+   * Optional per-object visitor invoked during `scene.traverseVisible` so callers
+   * can piggyback UI extraction onto the same single scene walk.
+   */
+  onVisitObject?: (object: THREE.Object3D) => void;
 };
 
 export class RaythreeExtractor {
@@ -86,7 +91,11 @@ export class RaythreeExtractor {
       instances: [] as Array<RenderInstance | InstancedRenderInstance>,
     };
 
+    const onVisitObject = callOptions?.onVisitObject;
     scene.traverseVisible((object: THREE.Object3D) => {
+      if (onVisitObject !== undefined) {
+        onVisitObject(object);
+      }
       if (isBridgeSkipped(object)) {
         return;
       }
@@ -99,7 +108,14 @@ export class RaythreeExtractor {
         return;
       }
 
-      if (!(object instanceof THREE.Object3D)) {
+      // Fast-skip plain Object3D/Group/UIKit Component containers before scanning lowerers.
+      const renderable = object as THREE.Object3D & {
+        isMesh?: boolean;
+        isLine?: boolean;
+        isPoints?: boolean;
+        isSprite?: boolean;
+      };
+      if (!renderable.isMesh && !renderable.isLine && !renderable.isPoints && !renderable.isSprite) {
         return;
       }
 
