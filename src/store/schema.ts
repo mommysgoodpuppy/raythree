@@ -271,12 +271,17 @@ export interface TextRunData {
  * enter the store: `feed` names a track the renderer receives over its media transport, and the
  * store says where it appears. `geometry` is the surface in item space; its UVs span 0..1 over the
  * shown region, which is `crop` of the feed's picture (normalized, top-left origin, y down).
+ *
+ * Renderer contract: while no frame has arrived yet for `feed` (or after the feed is cleared),
+ * the renderer draws a waiting/loading indicator on the surface instead of solid black.
  */
 export interface VideoSurfaceData {
   feed: string;
   geometry: RowId;
   crop: { x: number; y: number; width: number; height: number };
   opacity: number;
+  /** Optional producer hint describing what the surface is waiting for before its first frame. */
+  waitingLabel?: string;
 }
 
 export interface TableRows {
