@@ -1,6 +1,5 @@
 import * as THREE from "three";
 import type { InstancedBufferAttribute } from "three";
-import { isInstancedPanelMeshRegisteredForRaythreeMeshLowerer } from "../../threewebxrwebgpudeno/local-uikit/raylibUikitMeshLowererRegistry.ts";
 
 import type {
   ExtractionWarning,
@@ -43,10 +42,10 @@ type GeometryAttributes = Record<
 >;
 
 /**
- * `Component` / `Container` (local-uikit) extend `THREE.Mesh` as flex **layout shells** with
+ * `Component` / `Container` (uikit) extend `THREE.Mesh` as flex **layout shells** with
  * `panelGeometry` — they are not world meshes for the Raythree IR. Skipping by duck-type avoids
  * importing uikit into raythree. `InstancedPanelMesh` has no `properties` / `node` fields; it is
- * covered by the WeakSet from `InstancedPanelGroup` or the attribute heuristics below.
+ * covered by the constructor name and attribute heuristics below.
  */
 function isUikitComponentLayoutMesh(mesh: THREE.Mesh): boolean {
   const m = mesh as unknown as {
@@ -66,9 +65,6 @@ function isUikitComponentLayoutMesh(mesh: THREE.Mesh): boolean {
  */
 function isDrawnByRaythreeUiSnapshot(mesh: THREE.Mesh): boolean {
   if (isUikitComponentLayoutMesh(mesh)) {
-    return true;
-  }
-  if (isInstancedPanelMeshRegisteredForRaythreeMeshLowerer(mesh)) {
     return true;
   }
   const userData = mesh.userData as { raythreeUiText?: unknown } | undefined;
