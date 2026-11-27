@@ -42,6 +42,9 @@ export interface GeometryAsset {
   bounds?: {
     center: [number, number, number];
     radius: number;
+    /** Local-space axis-aligned bounding box corners, when vertex positions are present. */
+    min?: [number, number, number];
+    max?: [number, number, number];
   };
 }
 
@@ -150,6 +153,8 @@ export interface RenderInstance {
    * (e.g. controller aim beam). Set `userData.raythreeHudOverUi = true` on the Three object.
    */
   hudOverUi?: boolean;
+  /** Optional typed host render metadata forwarded by custom lowerers (e.g. `<PetplayElement>`). */
+  renderProps?: Record<string, unknown>;
 }
 
 export interface InstancedRenderInstance extends RenderInstance {

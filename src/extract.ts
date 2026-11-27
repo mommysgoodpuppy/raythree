@@ -204,7 +204,9 @@ export class RaythreeExtractor {
 
     if (geometry.boundingSphere !== null || geometry.attributes.position !== undefined) {
       geometry.computeBoundingSphere();
+      geometry.computeBoundingBox();
       if (geometry.boundingSphere !== null) {
+        const box = geometry.boundingBox;
         nextAsset.bounds = {
           center: [
             geometry.boundingSphere.center.x,
@@ -212,6 +214,12 @@ export class RaythreeExtractor {
             geometry.boundingSphere.center.z,
           ],
           radius: geometry.boundingSphere.radius,
+          ...(box !== null && !box.isEmpty()
+            ? {
+              min: [box.min.x, box.min.y, box.min.z] as [number, number, number],
+              max: [box.max.x, box.max.y, box.max.z] as [number, number, number],
+            }
+            : {}),
         };
       }
     }
